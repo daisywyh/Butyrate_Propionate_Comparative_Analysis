@@ -1,0 +1,17 @@
+
+nucProdigalDir: "workflow/out/nucProdigalTranslation"
+nucProdigalDirwHeader: "workflow/out/nucProdigalwHeader"
+hitStrainF: "config/propionate/propionate_HMMER_hits_strains.txt"
+reads_file: "config/NCBI_accessions_metagenomics_samples.txt"
+
+prodigalEnv: "../../workflow/envs/prodigal.yml"
+strainGenomeDir: "config/strain_genomes"
+
+indexDir: "workflow/out/index"
+readsDir: "workflow/out/reads"
+bowtieOutput: "workflow/out/bt_output"
+bowtieOutputHits: "workflow/out/bt_hits"
+sraRepo: "workflow/out/prefetched"
+hitSummaries: "workflow/out/bt_hit_summaries"
+transcriptLengthDir: "workflow/out/transcriptLengths"
+readCounts: "workflow/out/readCounts"

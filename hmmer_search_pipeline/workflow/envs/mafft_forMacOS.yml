@@ -1,0 +1,16 @@
+name: mafft
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - gawk=5.3.0=h2c496e9_0
+  - gettext=0.21.1=h8a4c099_0
+  - gmp=6.2.1=h2e338ed_0
+  - libcxx=16.0.6=hd57cbcb_0
+  - libiconv=1.17=hac89ed1_0
+  - mafft=7.520=h2413b67_3
+  - mpfr=4.2.1=h0c69b56_0
+  - ncurses=6.4=h93d8f39_2
+  - readline=8.2=h9e318b2_1
+prefix: /Users/rebeccachristensen/opt/anaconda3/envs/mafft

@@ -1,0 +1,22 @@
+
+# HMM profiles
+profileHMM_Dir: "config/profileHMMs"
+
+# prodigal output directories
+proteinSeqDir: "../../workflow/out/prodigal/proteinSeq"
+
+# location of strain genomes
+strainGenomeDir: "config/strain_genomes"
+
+# local directories
+mafftEnv: "../../workflow/envs/mafft_forMacOS.yml"
+hmmerEnv: "../../workflow/envs/hmmer.yml"
+prodigalEnv: "../../workflow/envs/prodigal.yml"
+edirectEnv: "../../workflow/envs/edirect.yml"
+
+geneFile: "config/geneLists/"
+strainFile: "config/strain_list.txt"
+
+prodigalProteinSeqDir: "../../workflow/out/prodigal/proteinSeq"
+
+hmmOutDir: "../../workflow/out/hmmer_search"

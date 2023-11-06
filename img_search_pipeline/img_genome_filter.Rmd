@@ -1,0 +1,737 @@
+---
+title: "img_genome_filter"
+output: html_document
+date: "2023-10-26"
+---
+# packages to load
+```{r}
+library(tidyverse)
+library(readr)
+```
+
+# Get IMG Gene IDs for IMG Genomes that pass WWC requirements: must have all carboxylase subunits, mutase, and epimerase, with NO description filter!!!
+# WWC
+```{r}
+carb_12s <- read_delim("img_genome_with_gene_ids/genomesAndGenes_carboxyltransferase12S_KO_K17489.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+carb_5s <- read_delim("img_genome_with_gene_ids/genomesAndGenes_carboxyltransferase5S_KO_K03416.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+carb_13s <- read_delim("img_genome_with_gene_ids/genomesAndGenes_carboxyltransferase1-3S_KO_K17490.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+WWC_df <- subset(P1_df, met_mutase == 1 & met_epimerase == 1 &
+                        (`12S_carboxyltransferase` &
+                        `5S_carboxyltransferase` &
+                        `1_3S_carboxyltransferase`) == 1)
+
+WWC_genomes <- WWC_df$IMG_genome_ID
+
+WWC_carb12s_df <- (subset(carb_12s, genome_id %in% WWC_genomes))
+WWC_carb5s_df <- (subset(carb_5s, genome_id %in% WWC_genomes))
+WWC_carb13s_df <- (subset(carb_13s, genome_id %in% WWC_genomes))
+
+carb12s_descriptions <- c("methylmalonyl-CoA carboxyltransferase 12S subunit", "methylmalonyl-CoA carboxyltransferase 12S subunit (EC 2.1.3.1)", "putative methylmalonyl-CoA carboxyltransferase 12S subunit")
+carb5s_descriptions <- c("methylmalonyl-CoA carboxyltransferase 5S subunit", "methylmalonyl-CoA carboxyltransferase 5S subunit (EC 2.1.3.1)")
+carb13s_descriptions <- c("methylmalonyl-CoA carboxyltransferase 1.3S subunit", "methylmalonyl-CoA carboxyltransferase 1.3S subunit (EC 2.1.3.1)", "methylmalonyl-CoA carboxyltransferase 1.3S subunit (biotin carboxyl carrier protein of transcarboxylase)")
+
+WWC_carb12s_descriptions_df <- subset(WWC_carb12s_df, description %in% carb12s_descriptions)
+WWC_carb5s_descriptions_df <- subset(WWC_carb5s_df, description %in% carb5s_descriptions)
+WWC_carb13s_descriptions_df <- subset(WWC_carb13s_df, description %in% carb13s_descriptions)
+
+genomes_common_descriptions <- Reduce(intersect, list(WWC_carb12s_descriptions_df$genome_id, WWC_carb5s_descriptions_df$genome_id, WWC_carb13s_descriptions_df$genome_id))
+
+WWC_descriptions_filter_df <- subset(WWC_df, IMG_genome_ID %in% genomes_common_descriptions)
+# IMPORTANT: Descriptions filter excludes 30 Propionibacterium species. DO NOT USE DESCRIPTION FILTER FOR THIS SUBPATHWAY
+
+withtitle <- append("gene\tcarb12s", as.vector(WWC_carb12s_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_carb12s.txt")
+
+withtitle <- append("gene\tcarb13s", as.vector(WWC_carb13s_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_carb13s.txt")
+
+withtitle <- append("gene\tcarb5s", as.vector(WWC_5s_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_carb5s.txt")
+```
+
+# SP
+```{r}
+# read in df
+decarb_delta <- read_delim("img_genome_with_gene_ids/genomesAndGenes_decarboxylaseDelta_KO_K23352.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+decarb_gamma <- read_delim("img_genome_with_gene_ids/genomesAndGenes_decarboxylaseGamma_KO_K23351.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+decarb_beta <- read_delim("img_genome_with_gene_ids/genomesAndGenes_decarboxylaseBeta_KO_K20509.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+decarb_alpha <- read_delim("img_genome_with_gene_ids/genomesAndGenes_decarboxylaseAlpha_KO_K01604.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+# subset for gene requirements
+SP_df_wD <- subset(P1_df, met_mutase == 1 & met_epimerase == 1 &
+                        (decarb_alpha & decarb_beta & decarb_gamma & decarb_delta) == 1)
+
+SP_df_nD <- subset(P1_df, met_mutase == 1 & met_epimerase == 1 &
+                        (decarb_alpha & decarb_beta & decarb_gamma) == 1)
+
+# Requiring the decarboxylase Delta subunit excludes several model butyrate producers. DO NOT REQUIRE DECARB DELTA. Delta subunit will not be included in analysis of SP.
+SP_df <- subset(P1_df, met_mutase == 1 & met_epimerase == 1 &
+                        (decarb_alpha & decarb_beta & decarb_gamma) == 1)
+
+SP_genomes <- SP_df$IMG_genome_ID
+
+SP_beta_df <- (subset(decarb_beta, genome_id %in% SP_genomes))
+SP_alpha_df <- (subset(decarb_alpha, genome_id %in% SP_genomes))
+SP_gamma_df <- (subset(decarb_gamma, genome_id %in% SP_genomes))
+
+delta_descriptions <- c("methylmalonyl-CoA decarboxylase, delta subunit", "methylmalonyl-CoA decarboxylase delta subunit", "methylmalonyl-CoA decarboxylase, delta subunit (EC 4.1.1.41)", "methylmalonyl-CoA decarboxylase delta-subunit")
+beta_descriptions <- c("methylmalonyl-CoA decarboxylase beta subunit", "methylmalonyl-CoA decarboxylase beta subunit (EC 4.1.1.41)")
+alpha_descriptions <- c("methylmalonyl-CoA decarboxylase alpha subunit", "methylmalonyl-CoA decarboxylase alpha subunit (EC 4.1.1.41)")
+gamma_descriptions <- c("methylmalonyl-CoA decarboxylase gamma subunit", "methylmalonyl-CoA decarboxylase gamma subunit (EC 4.1.1.41)", "methylmalonyl-CoA decarboxylase, gamma subunit")
+
+SP_beta_descriptions_df <- subset(SP_beta_df, description %in% beta_descriptions)
+SP_alpha_descriptions_df <- subset(SP_alpha_df, description %in% alpha_descriptions)
+SP_gamma_descriptions_df <- subset(SP_gamma_df, description %in% gamma_descriptions)
+
+genomes_common_descriptions <- Reduce(intersect, list(SP_beta_descriptions_df$genome_id, SP_alpha_descriptions_df$genome_id, SP_gamma_descriptions_df$genome_id))
+
+SP_descriptions_filter_df <- subset(SP_df, IMG_genome_ID %in% genomes_common_descriptions)
+
+# IMPORTANT: Using a description filter excludes ALL model butyrate producers except for V. parvula. Do not use a description filter for this pathway!!!! ALso: do not require the delta subunit!
+withtitle <- append("gene\tdecarbBeta", as.vector(SP_beta_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_decarbBeta.txt")
+
+withtitle <- append("gene\tdecarbAlpha", as.vector(SP_alpha_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_decarbAlpha.txt")
+
+withtitle <- append("gene\tdecarbGamma", as.vector(SP_gamma_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_decarGamma.txt")
+
+```
+
+# SP and WWC mutase and epimerase
+```{r}
+mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_mutase_EC_5-4-99-2.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+mutase_df <- subset(P1_df, met_mutase == 1 & met_epimerase == 1 &
+                        ((`12S_carboxyltransferase` &
+                        `5S_carboxyltransferase` &
+                        `1_3S_carboxyltransferase`) == 1) | ((decarb_alpha & decarb_beta & decarb_gamma) == 1))
+
+mutase_genomes <- mutase_df$IMG_genome_ID
+
+mutase_df <- (subset(mutase, genome_id %in% mutase_genomes))
+
+# epimerase
+epimerase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_epimerase_EC_5-1-99-1.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+epimerase_df <- subset(P1_df, met_epimerase == 1 & met_epimerase == 1 &
+                        ((`12S_carboxyltransferase` &
+                        `5S_carboxyltransferase` &
+                        `1_3S_carboxyltransferase`) == 1) | ((decarb_alpha & decarb_beta & decarb_gamma) == 1))
+
+epimerase_genomes <- epimerase_df$IMG_genome_ID
+
+epimerase_df <- (subset(epimerase, genome_id %in% epimerase_genomes))
+
+withtitle <- append("gene\tepimerase", as.vector(epimerase_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_epimerase.txt")
+
+withtitle <- append("gene\tmutase", as.vector(mutase_df$gene_id))
+write_lines(withtitle, "img_gene_ids/filteredGeneIDs_forpHMM_mutase.txt")
+
+```
+
+# Acr
+```{r}
+genomeIDs_acrC <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_acrC.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_lcdC <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_lcdC.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_lcdB <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_lcdB.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_lcdA <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_lcdA.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pct <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pct.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+  
+# create df
+P2_df <- data.frame(matrix(ncol = 8, nrow = ((nrow(genomeIDs_acrC)) + 
+                                               (nrow(genomeIDs_lcdC)) + 
+                                               (nrow(genomeIDs_lcdB)) + 
+                                               (nrow(genomeIDs_lcdA)) +
+                                               (nrow(genomeIDs_pct)))))
+colnames(P2_df) <- c("IMG_genome_ID", "genome_name", "lcdA", "lcdB", "lcdC", "pct", "acrC", "n_genes_present")
+
+P2_df$IMG_genome_ID <- c(genomeIDs_acrC$`Genome ID`, 
+                         genomeIDs_lcdC$`Genome ID`, 
+                         genomeIDs_lcdB$`Genome ID`, 
+                         genomeIDs_lcdA$`Genome ID`, 
+                         genomeIDs_pct$`Genome ID`)
+
+P2_df$genome_name <- c(genomeIDs_acrC$`Genome Name`, 
+                         genomeIDs_lcdC$`Genome Name`, 
+                         genomeIDs_lcdB$`Genome Name`, 
+                         genomeIDs_lcdA$`Genome Name`, 
+                         genomeIDs_pct$`Genome Name`)
+
+P2_df[,c("lcdA", "lcdB", "lcdC", "pct", "acrC")] <- 0
+
+P2_df <- P2_df %>% distinct()
+
+P2_df$acrC[P2_df$IMG_genome_ID %in% genomeIDs_acrC$`Genome ID`] <- 1
+nrow(subset(P2_df, acrC == 1))
+length(unique(genomeIDs_acrC$`Genome ID`))
+
+P2_df$lcdA[P2_df$IMG_genome_ID %in% genomeIDs_lcdA$`Genome ID`] <- 1
+nrow(subset(P2_df, lcdA == 1))
+length(unique(genomeIDs_lcdA$`Genome ID`))
+
+P2_df$lcdB[P2_df$IMG_genome_ID %in% genomeIDs_lcdB$`Genome ID`] <- 1
+nrow(subset(P2_df, lcdB == 1))
+length(unique(genomeIDs_lcdB$`Genome ID`))
+
+P2_df$lcdC[P2_df$IMG_genome_ID %in% genomeIDs_lcdC$`Genome ID`] <- 1
+nrow(subset(P2_df, lcdC == 1))
+length(unique(genomeIDs_lcdC$`Genome ID`))
+
+P2_df$pct[P2_df$IMG_genome_ID %in% genomeIDs_pct$`Genome ID`] <- 1
+nrow(subset(P2_df, pct == 1))
+length(unique(genomeIDs_pct$`Genome ID`))
+
+P2_df$n_genes_present <- rowSums(P2_df[,c("lcdA", "lcdB", "lcdC", "pct", "acrC")])
+
+xtabs(~lcdA+lcdB+lcdC+pct+acrC, data=P2_df)
+
+# conclusion: acrC is not a viable check of for propiogenic genomes b/c it's not really.... around .....
+
+df <- genomeAndGeneIDs_pct
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pct.txt"
+P2_genome_IDs <- as.vector(subset(P2_df$IMG_genome_ID, P2_df$n_genes_present > 4))
+genes <- append("gene\tpct", as.vector(subset(df$gene_id, df$genome_id %in% P2_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_lcdA
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_lcdA.txt"
+P2_genome_IDs <- as.vector(subset(P2_df$IMG_genome_ID, P2_df$n_genes_present > 4))
+genes <- append("gene\tlcdA", as.vector(subset(df$gene_id, df$genome_id %in% P2_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_lcdB
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_lcdB.txt"
+P2_genome_IDs <- as.vector(subset(P2_df$IMG_genome_ID, P2_df$n_genes_present > 4))
+genes <- append("gene\tlcdB", as.vector(subset(df$gene_id, df$genome_id %in% P2_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_lcdC
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_lcdC.txt"
+P2_genome_IDs <- as.vector(subset(P2_df$IMG_genome_ID, P2_df$n_genes_present > 4))
+genes <- append("gene\tlcdC", as.vector(subset(df$gene_id, df$genome_id %in% P2_genome_IDs)))
+write_lines(genes, output_file)
+```
+
+# Pro
+```{r}
+genomeIDs_fucO <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_fucO.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pduP <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pduP.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pduC <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pduC.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pduD <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pduD.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pduE <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pduE.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pduL <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pduL.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+genomeIDs_pduW <- mutase <- read_delim("img_genome_with_gene_ids/genomesAndGenes_pduW.txt", delim = "\t", escape_double = FALSE, col_types = cols(...5 = col_skip()), trim_ws = TRUE)
+
+# create df
+P3_df <- data.frame(matrix(ncol = 10, nrow = ((nrow(genomeIDs_fucO)) + 
+                                               (nrow(genomeIDs_pduP)) + 
+                                               (nrow(genomeIDs_pduC)) + 
+                                               (nrow(genomeIDs_pduD)) +
+                                               (nrow(genomeIDs_pduE)) +
+                                                (nrow(genomeIDs_pduL)) +
+                                                (nrow(genome_IDs_pduW)))))
+colnames(P3_df) <- c("IMG_genome_ID", "genome_name", "fucO", "pduC", "pduD", "pduE", "pduL", "pduP", "pduW", "n_genes_present")
+# P3_df$IMG_genome_ID <- genome_IDs
+P3_df$IMG_genome_ID <- c(genomeIDs_fucO$`Genome ID`, 
+                         genomeIDs_pduP$`Genome ID`, 
+                         genomeIDs_pduC$`Genome ID`, 
+                         genomeIDs_pduD$`Genome ID`, 
+                         genomeIDs_pduE$`Genome ID`,
+                         genomeIDs_pduL$`Genome ID`,
+                         genome_IDs_pduW$`Genome ID`)
+
+P3_df$genome_name <- c(genomeIDs_fucO$`Genome Name`, 
+                         genomeIDs_pduP$`Genome Name`, 
+                         genomeIDs_pduC$`Genome Name`, 
+                         genomeIDs_pduD$`Genome Name`, 
+                         genomeIDs_pduE$`Genome Name`,
+                         genomeIDs_pduL$`Genome Name`,
+                         genome_IDs_pduW$`Genome Name`)
+
+P3_df[,c("fucO", "pduC", "pduD", "pduE", "pduL", "pduP", "pduW")] <- 0
+
+P3_df <- P3_df %>% distinct()
+
+P3_df$fucO[P3_df$IMG_genome_ID %in% genomeIDs_fucO$`Genome ID`] <- 1
+nrow(subset(P3_df, fucO == 1))
+length(unique(genomeIDs_fucO$`Genome ID`))
+
+P3_df$pduP[P3_df$IMG_genome_ID %in% genomeIDs_pduP$`Genome ID`] <- 1
+nrow(subset(P3_df, pduP == 1))
+length(unique(genomeIDs_pduP$`Genome ID`))
+
+P3_df$pduD[P3_df$IMG_genome_ID %in% genomeIDs_pduD$`Genome ID`] <- 1
+nrow(subset(P3_df, pduD == 1))
+length(unique(genomeIDs_pduD$`Genome ID`))
+
+P3_df$pduC[P3_df$IMG_genome_ID %in% genomeIDs_pduC$`Genome ID`] <- 1
+nrow(subset(P3_df, pduC == 1))
+length(unique(genomeIDs_pduC$`Genome ID`))
+
+P3_df$pduE[P3_df$IMG_genome_ID %in% genomeIDs_pduE$`Genome ID`] <- 1
+nrow(subset(P3_df, pduE == 1))
+length(unique(genomeIDs_pduE$`Genome ID`))
+
+P3_df$pduL[P3_df$IMG_genome_ID %in% genomeIDs_pduL$`Genome ID`] <- 1
+nrow(subset(P3_df, pduL == 1))
+length(unique(genomeIDs_pduL$`Genome ID`))
+
+P3_df$pduW[P3_df$IMG_genome_ID %in% genome_IDs_pduW$`Genome ID`] <- 1
+nrow(subset(P3_df, pduW == 1))
+length(unique(genome_IDs_pduW$`Genome ID`))
+
+
+P3_df$propanediol_dehydratase_any <- ifelse((P3_df$pduD | P3_df$pduC | P3_df$pduE) == 1, 
+                                        1, 0)
+
+P3_df$propanediol_dehydratase_all <- ifelse((P3_df$pduD & P3_df$pduC & P3_df$pduE) == 1, 
+                                        1, 0)
+
+P3_df$n_genes_present <- rowSums(P3_df[,c("fucO", "pduC", "pduD", "pduE", "pduL", "pduP", "pduW")])
+
+table(P3_df$n_genes_present)
+
+paste("genomes with ALL genes: ",
+      nrow(subset(P3_df, n_genes_present == 7)))
+
+xtabs(~fucO+pduC+pduD+pduE+pduP+pduL+pduW, data=P3_df)
+
+# S. tymphimurium is the only strain recorded to have this pathway. But it checks out I guess -- it has all 7 genes.
+# hard to say which strains/gene sequences we should include, but the most conservative thing we could do is take strains with all 7 genes. And luckily there are over 4,000 strains that fit that mark.
+
+df <- genomeAndGeneIDs_pduW
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pduW.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tpduW", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_pduL
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pduL.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tpduL", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_pduC
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pduC.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tpduC", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_pduD
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pduD.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tpduD", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_pduE
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pduE.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tpduE", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_fucO
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_fucO.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tfucO", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+
+df <- genomeAndGeneIDs_pduP
+output_file <- "img_gene_ids/filteredGeneIDs_forpHMM_pduP.txt"
+P3_genome_IDs <- as.vector(subset(P3_df$IMG_genome_ID, P3_df$n_genes_present == 7))
+genes <- append("gene\tpduP", as.vector(subset(df$gene_id, df$genome_id %in% P3_genome_IDs)))
+write_lines(genes, output_file)
+```
+
+# BUTYRATE
+# keyword filter of description applied to ambiguous IMG gene entries determined from manually checking the frequency of gene descriptions
+```{r}
+bcd_descriptions <- c("butyryl-CoA dehydrogenase", "butyryl-CoA dehydrogenase (EC 1.3.99.2)", "Butyryl-CoA dehydrogenase", "(3-hydroxy)butyryl-coA dehydrogenase", "butyryl-CoA dehydrogenase Bcd")
+ptb_descriptions <- c("phosphate butyryltransferase", "phosphate butyryltransferase (EC 2.3.1.19)", "Phosphate butyryltransferase")
+but_descriptions <- c("butyryl-CoA:acetate CoA-transferase", "4-hydroxybutyrate coenzyme A transferase", "butyryl-CoA transferase", "4-hydroxybutyrate CoA-transferase")
+hbd_descriptions <- c("3-hydroxybutyryl-CoA dehydrogenase", "Probable 3-hydroxybutyryl-CoA dehydrogenase", "3-hydroxybutyryl-coa dehydrogenase", "3-hydroxybutyryl-CoA dehydrogenase protein", "probable 3-hydroxybutyryl-CoA dehydrogenase", "hydroxybutyryl-CoA dehydrogenase")
+```
+
+```{r}
+# make new "genes" column by parsing "job" column in df and "presence" = 1 for each row
+columns <- c("job", "filter", "gene_id", "description", "genome_id")
+
+butyrate_IMG_genomes <- read_delim("img_genomes/butyrate_IMG_genomes.txt", 
+                                   delim = "\t", escape_double = FALSE, 
+                                   col_names = columns, trim_ws = TRUE)
+
+butyrate_IMG_genomes$genome_id <- as.character(butyrate_IMG_genomes$genome_id)
+butyrate_IMG_genomes$gene <- gsub("_.*", "", butyrate_IMG_genomes$job)
+butyrate_IMG_genomes$presence <- 1
+
+df <- butyrate_IMG_genomes
+
+df$presence <- ifelse(df$gene == "bcd" & !(df$description %in% bcd_descriptions),
+                      0, 
+                      ifelse(df$gene == "but" & !(df$description %in% but_descriptions),
+                             0, 
+                             ifelse(df$gene == "ptb" & !(df$description %in% ptb_descriptions),
+                                    0, 
+                                    ifelse(df$gene == "hbd" & !(df$description %in% hbd_descriptions),
+                                           0, 
+                                           1))))
+
+butyrate_IMG_genomes <- subset(df, presence == 1)
+
+# mutate df so that: row = genome_ID, col = genes
+
+butyrate_IMG_genomes_gene_presence <- butyrate_IMG_genomes %>%
+  select(genome_id, gene, presence) %>%
+  distinct() %>%
+  # df contains duplicate rows (some genomes have multiple instances of the same gene reported in IMG) so remove duplicate rows!
+  pivot_wider(id_cols = genome_id,
+              names_from = gene,
+              values_from = presence,
+              values_fill = 0)
+
+# make a df for the genes in each pathway!
+genes <- unique(butyrate_IMG_genomes$gene)
+
+pathways <- c("lysine", "acetylCoA_buk", "acetylCoA_but", "aminobutyrate_buk", "aminobutyrate_but", "glutarate_buk", "glutarate_but")
+
+pathway_genes <- data.frame(matrix(ncol = length(genes) + 1, nrow = length(pathways)))
+colnames(pathway_genes) <- c("pathway", genes)
+pathway_genes$pathway <- pathways
+
+lysine_genes <- c("kamA", "kamD", "kamE", "kdd", "kce", "kal", "bcd", "atoA", "atoD")
+acetylCoA_buk_genes <- c("thl", "hbd", "cro", "bcd", "buk", "ptb")
+acetylCoA_but_genes <- c("thl", "hbd", "cro", "bcd", "but")
+aminobutyrate_buk_genes <- c("abfH", "abfT", "abfD", "bcd", "buk", "ptb")
+aminobutyrate_but_genes <- c("abfH", "abfT", "abfD", "bcd", "but")
+glutarate_buk_genes <- c("hgdA", "hgdB", "hgdC", "gctA", "gctB", "gcdA", "gcdB", "bcd", "buk", "ptb")
+glutarate_but_genes <- c("hgdA", "hgdB", "hgdC", "gctA", "gctB", "gcdA", "gcdB", "bcd", "but")
+
+for (n_row in 1:nrow(pathway_genes)) {
+  if (pathway_genes[n_row, "pathway"] == "lysine") {
+    for (gene in lysine_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  if (pathway_genes[n_row, "pathway"] == "acetylCoA_buk") {
+    for (gene in acetylCoA_buk_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  if (pathway_genes[n_row, "pathway"] == "acetylCoA_but") {
+    for (gene in acetylCoA_but_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  if (pathway_genes[n_row, "pathway"] == "aminobutyrate_buk") {
+    for (gene in aminobutyrate_buk_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  if (pathway_genes[n_row, "pathway"] == "aminobutyrate_but") {
+    for (gene in aminobutyrate_but_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  if (pathway_genes[n_row, "pathway"] == "glutarate_buk") {
+    for (gene in glutarate_buk_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  if (pathway_genes[n_row, "pathway"] == "glutarate_but") {
+    for (gene in glutarate_but_genes) {
+      pathway_genes[n_row, gene] <- 1
+    }
+  }
+  
+}
+
+# add genome names hehe 
+butyrate_IMG_genomes_gene_presence$genome_id <- as.character(butyrate_IMG_genomes_gene_presence$genome_id)
+butyrate_IMG_genome_names$genome_id <- as.character(butyrate_IMG_genome_names$genome_id)
+genome_name_appended <- left_join(butyrate_IMG_genomes_gene_presence, butyrate_IMG_genome_names[,c("genome_id", "genome_name")], by = "genome_id")
+
+butyrate_IMG_genomes_gene_presence <- genome_name_appended
+
+# for each genome, determine n Genes per pathway
+lysine_genes_req <- subset(gene_requirements$gene, gene_requirements$lysine == "required")
+acetylCoA_buk_genes_req <- subset(gene_requirements$gene, gene_requirements$acetylCoA_buk == "required")
+acetylCoA_but_genes_req <- subset(gene_requirements$gene, gene_requirements$acetylCoA_but == "required")
+aminobutyrate_buk_genes_req <- subset(gene_requirements$gene, gene_requirements$aminobutyrate_buk == "required")
+aminobutyrate_but_genes_req <- subset(gene_requirements$gene, gene_requirements$aminobutyrate_but == "required")
+glutarate_buk_genes_req <- subset(gene_requirements$gene, gene_requirements$glutarate_buk == "required")
+glutarate_but_genes_req <- subset(gene_requirements$gene, gene_requirements$glutarate_but == "required")
+
+butyrate_IMG_genomes_gene_presence$lysine_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,lysine_genes_req])
+
+butyrate_IMG_genomes_gene_presence$acetylCoA_buk_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,acetylCoA_buk_genes_req])
+butyrate_IMG_genomes_gene_presence$acetylCoA_but_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,acetylCoA_but_genes_req])
+
+butyrate_IMG_genomes_gene_presence$aminobutyrate_but_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,aminobutyrate_but_genes_req])
+butyrate_IMG_genomes_gene_presence$aminobutyrate_buk_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,aminobutyrate_buk_genes_req])
+
+butyrate_IMG_genomes_gene_presence$glutarate_buk_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,glutarate_buk_genes_req])
+butyrate_IMG_genomes_gene_presence$glutarate_but_genes_tot_req <- rowSums(butyrate_IMG_genomes_gene_presence[,glutarate_but_genes_req])
+
+butyrate_IMG_genomes_gene_presence <- butyrate_IMG_genomes_gene_presence %>%
+  distinct()
+
+# determine nGenes/pathway and avg gene presence for each model butyrate producers
+butyrate_IMG_genomes_gene_presence$species <- NA
+# add "species" column
+
+parse_species <- function(genome_name) {
+  species <- paste(strsplit(genome_name, " ")[[1]][1], strsplit(genome_name, " ")[[1]][2], sep = " ")
+  return(species)
+}
+
+for (n_row in 1:nrow(butyrate_IMG_genomes_gene_presence)) {
+  genome_name = as.character(butyrate_IMG_genomes_gene_presence[n_row, "genome_name"])
+  butyrate_IMG_genomes_gene_presence[n_row, "species"] <- parse_species(genome_name)
+}
+
+# column for model butyrate producers (binary)
+butyrate_IMG_genomes_gene_presence_species_summary$model <- ifelse(butyrate_IMG_genomes_gene_presence_species_summary$species %in% model_butyrate_producers,
+                                                                   "yes", "no")
+```
+
+
+```{r}
+buk_ids <- c()
+but_ids <- c()
+hbd_ids <- c()
+ptb_ids <- c()
+thl_ids <- c()
+bcd_ids <- c()
+cro_ids <- c()
+abfD_ids <- c()
+abfH_ids <- c()
+abfT_ids <- c()
+hgdC_ids <- c()
+hgdB_ids <- c()
+hgdA_ids <- c()
+gctA_ids <- c()
+gctB_ids <- c()
+gcdB_ids <- c()
+gcdA_ids <- c()
+kal_ids <- c()
+kamA_ids <- c()
+kamD_ids <- c()
+kamE_ids <- c()
+kce_ids <- c()
+kdd_ids <- c()
+atoA_ids <- c()
+atoD_ids <- c()
+
+# #LYSINE PATHWAY
+lysine_genome_ids <- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$lysine_genes_tot_req == lysine_nGene)
+# write file with lysine gene IDs per gene for lysine positive genomes
+for (gene in lysine_genes_req) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id,
+                     (butyrate_IMG_genomes$genome_id %in% lysine_genome_ids) &
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  gene_list <- paste(gene, "_ids", sep = "")
+  
+  ifelse(gene == gene,
+         assign(gene_list, append(gene_list, gene_ids)), 
+         assign(gene_list, append(gene_list, gene_ids)))
+  
+  header = paste("gene\t", gene, sep = "")
+  file_name = paste("img_gene_ids/", gene, "_ids.txt", sep = "")
+  write_lines(c(header, gene_ids), sep = "\n", file = file_name)
+}
+
+#AcetylCoA-Buk PATHWAY
+acetylCoA_buk_genome_ids <- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$acetylCoA_buk_genes_tot_req == acetylCoA_buk_nGene)
+
+for (gene in acetylCoA_buk_genes) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id,
+                     (butyrate_IMG_genomes$genome_id %in% acetylCoA_buk_genome_ids) &
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  ifelse(gene == "thl",
+         thl_ids <- append(thl_ids, gene_ids),
+         ifelse(gene == "bcd",
+                bcd_ids <- append(bcd_ids, gene_ids),
+                ifelse(gene == "hbd",
+                       hbd_ids <- append(hbd_ids, gene_ids), 
+                       ifelse(gene == "cro",
+                              cro_ids <- append(cro_ids, gene_ids), 
+                              ifelse(gene == "buk",
+                                     buk_ids <- append(buk_ids, gene_ids), 
+                                     ifelse(gene == "ptb",
+                                            ptb_ids <- append(ptb_ids, gene_ids), NA
+                                     )
+                              )
+                       )
+                )
+         ))
+}
+
+#AcetylCoA-But PATHWAY
+acetylCoA_but_genome_ids <- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$acetylCoA_but_genes_tot_req == acetylCoA_but_nGene)
+
+for (gene in acetylCoA_but_genes_req) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id,
+                     (butyrate_IMG_genomes$genome_id %in% acetylCoA_but_genome_ids) &
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  ifelse(gene == "thl",
+         thl_ids <- append(thl_ids, gene_ids),
+         ifelse(gene == "bcd",
+                bcd_ids <- append(bcd_ids, gene_ids),
+                ifelse(gene == "hbd",
+                       hbd_ids <- append(hbd_ids, gene_ids), 
+                       ifelse(gene == "cro",
+                              cro_ids <- append(cro_ids, gene_ids), 
+                              ifelse(gene == "but",
+                                     but_ids <- append(but_ids, gene_ids), NA
+                              )
+                       )
+                )
+         ))
+}
+
+# aminobutyrate-buk pathway
+aminobutyrate_buk_genome_ids <- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$aminobutyrate_buk_genes_tot_req == aminobutyrate_buk_nGene)
+
+for (gene in aminobutyrate_buk_genes_req) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id,
+                     (butyrate_IMG_genomes$genome_id %in% aminobutyrate_buk_genome_ids) &
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  ifelse(gene == "abfD",
+         abfD_ids <- append(abfD_ids, gene_ids),
+         ifelse(gene == "bcd",
+                bcd_ids <- append(bcd_ids, gene_ids),
+                ifelse(gene == "abfH",
+                       abfH_ids <- append(abfH_ids, gene_ids), 
+                       ifelse(gene == "abfT",
+                              abfT_ids <- append(abfT_ids, gene_ids), 
+                              ifelse(gene == "buk",
+                                     buk_ids <- append(buk_ids, gene_ids), 
+                                     ifelse(gene == "ptb",
+                                            ptb_ids <- append(ptb_ids, gene_ids), NA
+                                     )
+                              )
+                       )
+                )
+         ))
+}
+
+# aminobutyrate-but pathway
+aminobutyrate_but_genome_ids <- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$aminobutyrate_but_genes_tot_req == aminobutyrate_but_nGene)
+
+for (gene in aminobutyrate_but_genes_req) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id,
+                     (butyrate_IMG_genomes$genome_id %in% aminobutyrate_but_genome_ids) &
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  ifelse(gene == "abfD",
+         abfD_ids <- append(abfD_ids, gene_ids),
+         ifelse(gene == "bcd",
+                bcd_ids <- append(bcd_ids, gene_ids),
+                ifelse(gene == "abfH",
+                       abfH_ids <- append(abfH_ids, gene_ids), 
+                       ifelse(gene == "abfT",
+                              abfT_ids <- append(abfT_ids, gene_ids),
+                              ifelse(gene == "but",
+                                     but_ids <- append(but_ids, gene_ids), NA
+                              )
+                       )
+                )
+         )
+  )
+}
+
+# glutarate-but pathway
+glutarate_but_genome_ids<- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$glutarate_but_genes_tot_req == glutarate_but_nGene)
+
+for (gene in glutarate_but_genes_req) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id, 
+                     (butyrate_IMG_genomes$genome_id %in% glutarate_but_genome_ids) & 
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  ifelse(gene == "gcdA",
+         gcdA_ids <- append(gcdA_ids, gene_ids),
+         ifelse(gene == "bcd",
+                bcd_ids <- append(bcd_ids, gene_ids),
+                ifelse(gene == "gcdB",
+                       gcdB_ids <- append(gcdB_ids, gene_ids), 
+                       ifelse(gene == "gctA",
+                              gctA_ids <- append(gctA_ids, gene_ids),
+                              ifelse(gene == "gctB",
+                                     gctB_ids <- append(gctB_ids, gene_ids),
+                                     ifelse(gene == "hgdA",
+                                            hgdA_ids <- append(hgdA_ids, gene_ids),
+                                            ifelse(gene == "hgdB",
+                                                   hgdB_ids <- append(hgdB_ids, gene_ids),
+                                                   ifelse(gene == "hgdC",
+                                                          hgdC_ids <- append(hgdC_ids, gene_ids),
+                                                          ifelse(gene == "but",
+                                                                 but_ids <- append(but_ids, gene_ids), NA
+                                                          )
+                                                   )
+                                            )
+                                     )
+                              )))))
+}
+
+# glutarate-buk pathway
+glutarate_buk_genome_ids <- subset(butyrate_IMG_genomes_gene_presence$genome_id, butyrate_IMG_genomes_gene_presence$glutarate_buk_genes_tot_req == glutarate_buk_nGene)
+
+for (gene in glutarate_but_genes_req) {
+  gene_ids <- subset(butyrate_IMG_genomes$gene_id, 
+                     (butyrate_IMG_genomes$genome_id %in% glutarate_buk_genome_ids) & 
+                       (butyrate_IMG_genomes$gene == gene))
+  
+  ifelse(gene == "gcdA",
+         gcdA_ids <- append(gcdA_ids, gene_ids),
+         ifelse(gene == "bcd",
+                bcd_ids <- append(bcd_ids, gene_ids),
+                ifelse(gene == "gcdB",
+                       gcdB_ids <- append(gcdB_ids, gene_ids), 
+                       ifelse(gene == "gctA",
+                              gctA_ids <- append(gctA_ids, gene_ids),
+                              ifelse(gene == "gctB",
+                                     gctB_ids <- append(gctB_ids, gene_ids),
+                                     ifelse(gene == "hgdA",
+                                            hgdA_ids <- append(hgdA_ids, gene_ids),
+                                            ifelse(gene == "hgdB",
+                                                   hgdB_ids <- append(hgdB_ids, gene_ids),
+                                                   ifelse(gene == "hgdC",
+                                                          hgdC_ids <- append(hgdC_ids, gene_ids),
+                                                          ifelse(gene == "buk",
+                                                                 buk_ids <- append(buk_ids, gene_ids), 
+                                                                 ifelse(gene == "ptb",
+                                                                        ptb_ids <- append(ptb_ids, gene_ids), 
+                                                                        NA
+                                                                 )
+                                                          )
+                                                   )
+                                            )
+                                     ))))))
+  
+}
+
+
+genes <- c("buk", "but", "hbd", "ptb", "thl", "bcd", "cro", "abfD", "abfH", "abfT", "hgdC", "hgdB", "hgdA", "gctA", "gctB", "gcdB", "gcdA")
+
+for (gene in genes) {
+  gene_list <- paste(gene, "_ids", sep = "")
+  
+  header = paste("gene\t", gene, sep = "")
+  file_name = paste("img_gene_ids/", gene, "_ids.txt", sep = "")
+  
+  write_lines(c(header, unique(eval(parse(text = gene_list)))), sep = "\n", file = file_name)
+}
+```
+

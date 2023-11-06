@@ -1,0 +1,860 @@
+---
+title: "filter_hmmer_results"
+output: html_document
+date: "2023-10-26"
+---
+
+# packages to load
+```{r}
+library(readr)
+library(tidyverse)
+library(ggplot2)
+
+maxHitScoreDF_propionate <- read_csv("maxHitScoreDF_propionate.csv", 
+    col_types = cols(...1 = col_skip()))
+
+maxHitScoreDF_butyrate <- read_csv("maxHitScoreDF_butyrate.csv", 
+    col_types = cols(...1 = col_skip()))
+
+maxHitScoreDF_housekeeping <- read_csv("maxHitScoreDF_housekeeping.csv", 
+    col_types = cols(...1 = col_skip()))
+```
+
+# PROPIONATE PATHWAY FILTER
+# SP and WWC
+```{r}
+model_succinate_strains <- c("Propionibacterium",
+                           "Bacteroides_fragilis",
+                           "Prevotella_ruminicola",
+                           "Selenomonas_ruminantium",
+                           "Veillonella_parvula", 
+                           "Selenomonas_sputigena")
+
+model_succinate_df <- (subset(maxHitScoreDF_propionate, 
+                       grepl(model_succinate_strains[1], strain) | 
+                          grepl(model_succinate_strains[2], strain) |
+                         grepl(model_succinate_strains[3], strain) | 
+                         grepl(model_succinate_strains[4], strain) | 
+                         grepl(model_succinate_strains[5], strain) | 
+                         grepl(model_succinate_strains[6], strain) 
+                       == TRUE))
+
+model_WWC_df <- (subset(maxHitScoreDF_propionate, 
+                       grepl(model_succinate_strains[1], strain)
+                       == TRUE))
+
+model_SP_df <- (subset(maxHitScoreDF_propionate, 
+                         grepl(model_succinate_strains[2], strain) | 
+                         grepl(model_succinate_strains[3], strain) | 
+                         grepl(model_succinate_strains[4], strain) | 
+                         grepl(model_succinate_strains[5], strain) | 
+                         grepl(model_succinate_strains[6], strain)
+                       == TRUE))
+
+# lowest model score per gene
+# mutase and epimerase
+slice(subset(model_succinate_df, model_succinate_df$gene == "methylmalonyl-CoA-mutase"), which.min(hit_score))
+slice(subset(model_succinate_df, model_succinate_df$gene == "methylmalonyl-CoA-epimerase"), which.min(hit_score))
+
+# carboxyltransferase subunits
+slice(subset(model_WWC_df, model_WWC_df$gene == "methylmalonyl-CoA-carboxyltransferase12S"), which.min(hit_score))
+slice(subset(model_WWC_df, model_WWC_df$gene == "methylmalonyl-CoA-carboxyltransferase5S"), which.min(hit_score))
+slice(subset(model_WWC_df, model_WWC_df$gene == "methylmalonyl-CoA-carboxyltransferase13S"), which.min(hit_score))
+
+# decarboxylase subunits
+slice(subset(model_SP_df, model_succ_df$gene == "methylmalonyl-CoA-decarboxylaseAlpha"), which.min(hit_score))
+slice(subset(model_SP_df, model_succ_df$gene == "methylmalonyl-CoA-decarboxylaseBeta"), which.min(hit_score))
+slice(subset(model_SP_df, model_succ_df$gene == "methylmalonyl-CoA-decarboxylaseGamma"), which.min(hit_score))
+
+# mininum model hit scores per gene determine from above^
+mutase_min_score = 791.6
+epimerase_min_score = 170.5
+carboxyltransferase12S_min_score = 902.7
+carboxyltransferase5S_min_score = 1003.9
+carboxyltransferase1_3S_min_score = 171.9
+decarboxylaseAlpha_min_score = 889
+decarboxylaseBeta_min_score = 558
+decarboxylaseGamma_min_score = 144.5
+
+# subset df by filter factor
+filter_factor = 0.5
+succinate_score_filtered_df <- as.data.frame(maxHitScoreDF_propionate) %>%
+  filter((gene == "methylmalonyl-CoA-epimerase" & hit_score >= epimerase_min_score * filter_factor) |
+         (gene == "methylmalonyl-CoA-mutase" & hit_score >= mutase_min_score * filter_factor) |
+         (gene == "methylmalonyl-CoA-carboxyltransferase5S" & hit_score >= carboxyltransferase5S_min_score * filter_factor) |
+         (gene == "methylmalonyl-CoA-carboxyltransferase12S" & hit_score >= carboxyltransferase12S_min_score * filter_factor) |
+         (gene == "methylmalonyl-CoA-carboxyltransferase13S" & hit_score >= carboxyltransferase1_3S_min_score * filter_factor) |
+           (gene == "methylmalonyl-CoA-decarboxylaseAlpha" & hit_score >= decarboxylaseAlpha_min_score * filter_factor) |
+           (gene == "methylmalonyl-CoA-decarboxylaseBeta" & hit_score >= decarboxylaseBeta_min_score * filter_factor) |
+           (gene == "methylmalonyl-CoA-decarboxylaseGamma" & hit_score >= decarboxylaseGamma_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+succinate_score_filtered_wide <- reshape(succinate_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# filter df by number of genes present
+# requirement: all but decarboxylase delta subunit must be present
+succinate_score_ngenes_filtered_wide <- subset(succinate_score_filtered_wide, 
+                                        !is.na(`hit_score.methylmalonyl-CoA-epimerase` &
+                                                 `hit_score.methylmalonyl-CoA-mutase`) & 
+                                          (!is.na(`hit_score.methylmalonyl-CoA-carboxyltransferase13S` & 
+                                                            `hit_score.methylmalonyl-CoA-carboxyltransferase12S` &
+                                                            `hit_score.methylmalonyl-CoA-carboxyltransferase5S`) | 
+                                                     !is.na(`hit_score.methylmalonyl-CoA-decarboxylaseAlpha` & 
+                                                              `hit_score.methylmalonyl-CoA-decarboxylaseBeta` &
+                                                              `hit_score.methylmalonyl-CoA-decarboxylaseGamma`))
+)
+
+# add column to distinguish which succinate pathway
+succinate_score_ngenes_filtered_wide$pathway <- ifelse((!is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase13S`) & 
+                                                       !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase12S`) &
+                                                       !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase5S`)),
+                                                     "WWC",
+                                                     (ifelse(!is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseAlpha`) & 
+                                                              !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseBeta`) &
+                                                              !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseGamma`), "SP", "SP or WWC")))
+
+succinate_score_ngenes_filtered_wide$pathway <- ifelse((!is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase13S`) & 
+                                                        !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase12S`) &
+                                                        !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase5S`) &
+                                                        !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseAlpha`) & 
+                                                        !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseBeta`) &
+                                                        !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseGamma`)), "SP or WWC",
+                                                     (ifelse(!is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase13S`) & 
+                                                               !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase12S`) &
+                                                               !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase5S`),
+                                                             "WWC", 
+                                                             (ifelse(!is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseAlpha`) & 
+                                                                       !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseBeta`) &
+                                                                       !is.na(succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseGamma`), "SP", NA)))))
+
+# graph distribution of hit scores to determine subpathway for strains with "SP or WWC" status
+# for SP genes 
+ggplot(subset(succinate_score_ngenes_filtered_wide, pathway %in% c("SP", "SP or WWC"))) +
+  geom_boxplot(aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseAlpha`, x = pathway, fill = pathway))
+ggplot(subset(succinate_score_ngenes_filtered_wide, pathway %in% c("SP", "SP or WWC"))) +
+  geom_boxplot(aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseBeta`, x = pathway, fill = pathway))
+ggplot(subset(succinate_score_ngenes_filtered_wide, pathway %in% c("SP", "SP or WWC"))) +
+  geom_boxplot(aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseGamma`, x = pathway, fill = pathway))
+
+# for WWC genes
+ggplot(subset(succinate_score_ngenes_filtered_wide, pathway %in% c("WWC", "SP or WWC"))) +
+  geom_boxplot(aes(y = `hit_score.methylmalonyl-CoA-carboxyltransferase12S`, x = pathway, fill = pathway))
+ggplot(subset(succinate_score_ngenes_filtered_wide, pathway %in% c("WWC", "SP or WWC"))) +
+  geom_boxplot(aes(y = `hit_score.methylmalonyl-CoA-carboxyltransferase13S`, x = pathway, fill = pathway))
+ggplot(subset(succinate_score_ngenes_filtered_wide, pathway %in% c("WWC", "SP or WWC"))) +
+  geom_boxplot(aes(y = `hit_score.methylmalonyl-CoA-carboxyltransferase5S`, x = pathway, fill = pathway))
+
+print(length(subset(succinate_score_ngenes_filtered_wide, pathway == "SP or WWC")))
+# Conclusions: all "SP or WWC" strains are likely SP, as their HMMER scores for the decarboxylase subunits are closer to "SP" strains than their HMMER scores for the "WWC" strain carboxyltransferase subunits. There is one exception: Propionibacterium_acidipropionici, which has much higher scores for the carboxyltransferase than the decarboxylase. These results check out with previous research: P. acidipropionici is a model WWC, and V. parvula is a model SP.
+
+# redesignated "SP or WWC" strains as either SP or WWC based on the above results
+succinate_score_ngenes_filtered_wide$pathway <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP or WWC",
+         ifelse(succinate_score_ngenes_filtered_wide$strain != "Propionibacterium_acidipropionici", "SP", "WWC"),
+         succinate_score_ngenes_filtered_wide$pathway)
+```
+
+# Acr
+```{r}
+model_acr <- c("Anaerotignum", 
+              "Megasphaera")
+
+model_acr_df <- (subset(maxHitScoreDF_propionate, 
+                        grepl(model_acr[1], strain) |
+                          grepl(model_acr[2], strain)
+                          == TRUE))
+
+slice(subset(model_acr_df, model_acr_df$gene == "lcdA"), which.min(hit_score))
+slice(subset(model_acr_df, model_acr_df$gene == "lcdB"), which.min(hit_score))
+slice(subset(model_acr_df, model_acr_df$gene == "lcdC"), which.min(hit_score))
+slice(subset(model_acr_df, model_acr_df$gene == "pct"), which.min(hit_score))
+
+# mininum model hit scores per gene determine from above^
+lcdA_min_score = 812.5
+lcdB_min_score = 683.5
+lcdC_min_score = 378.9
+pct_min_score = 854.6
+
+# subset df by filter factor
+filter_factor = 0.5
+acr_score_filtered_df <- as.data.frame(maxHitScoreDF_propionate) %>%
+  filter((gene == "lcdA" & hit_score >= lcdA_min_score * filter_factor) |
+         (gene == "lcdB" & hit_score >= lcdB_min_score * filter_factor) |
+         (gene == "lcdC" & hit_score >= lcdC_min_score * filter_factor) |
+         (gene == "pct" & hit_score >= pct_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+acr_score_filtered_wide <- reshape(acr_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# filter df by number of genes present
+# requirement: all but decarboxylase delta subunit must be present
+acr_score_ngenes_filtered_wide <- subset(acr_score_filtered_wide, 
+                                     !is.na(hit_score.lcdA & 
+                                              hit_score.lcdB &
+                                              hit_score.lcdC &
+                                              hit_score.pct))
+
+acr_score_ngenes_filtered_wide$pathway <- "Acr"
+```
+
+# Pro
+```{r}
+model_pro<- c("Roseburia-inulinivorans-strain-AF28-15", 
+             "Salmonella_typhimurium", 
+             "Roseburia_inulinivorans")
+
+model_pro_df <- (subset(maxHitScoreDF_propionate, 
+                       grepl(model_pro[1], strain) |
+                         grepl(model_pro[2], strain) |
+                         grepl(model_pro[3], strain)
+                       == TRUE))
+
+slice(subset(model_pro_df, model_pro_df$gene == "fucO"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "pduP"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "pduC"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "pduD"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "pduE"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "pduL"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "pduW"), which.min(hit_score))
+slice(subset(model_pro_df, model_pro_df$gene == "Roseburia-inulivorans-pduCDE"), which.min(hit_score))
+
+# mininum model hit scores per gene determine from above^
+fucO_min_score <- 609.2 
+pduP_min_score <- 528.6
+pduC_min_score <- 1306.5
+pduD_min_score <- 492.9
+pduE_min_score <- 372.4
+pduL_min_score <- 200.9
+pduW_min_score <- 464.6
+pduCDE_min_score <- 2057.6	# exclude Salmonella from this since Salmonella uses the non-R. inulinivorans version of pduCDE
+
+# subset df by filter factor
+filter_factor = 0.5
+
+pro_score_filtered_df <- as.data.frame(maxHitScoreDF_propionate) %>%
+  filter((gene == "fucO" & hit_score >= fucO_min_score * filter_factor) |
+         (gene == "pduP" & hit_score >= pduP_min_score * filter_factor) |
+         (gene == "pduW" & hit_score >= pduW_min_score * filter_factor) |
+         (gene == "pduL" & hit_score >= pduL_min_score * filter_factor) |
+         (gene == "pduC" & hit_score >= pduC_min_score * filter_factor) |
+           (gene == "pduD" & hit_score >= pduD_min_score * filter_factor) |
+           (gene == "pduE" & hit_score >= pduE_min_score * filter_factor) |
+           (gene == "Roseburia-inulivorans-pduCDE" & hit_score >= pduCDE_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+pro_score_filtered_wide <- reshape(pro_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# filter df by number of genes present
+# requirement: all but decarboxylase delta subunit must be present
+
+pro_score_ngenes_filtered_wide <- subset(pro_score_filtered_wide, 
+                                             !is.na(hit_score.pduW & 
+                                                      hit_score.pduP &
+                                                      hit_score.pduL &
+                                                      hit_score.fucO) &
+                                               (!is.na(`hit_score.Roseburia-inulivorans-pduCDE`) | 
+                                                  !is.na(hit_score.pduC &
+                                                           hit_score.pduD &
+                                                           hit_score.pduE)))
+
+pro_score_ngenes_filtered_wide$pathway <- "Pro"
+```
+
+# check for strains that are positive for mutliple pathways
+```{r}
+intersect(pro_score_ngenes_filtered_wide$strain, acr_score_ngenes_filtered_wide$strain)
+intersect(succinate_score_ngenes_filtered_wide$strain, acr_score_ngenes_filtered_wide$strain)
+intersect(succinate_score_ngenes_filtered_wide$strain,acr_score_ngenes_filtered_wide$strain)
+# three strains test pos for both P1 and acr, all Veillonella. The strains are SP-specific. 
+strains <- intersect(succinate_score_ngenes_filtered_wide$strain,acr_score_ngenes_filtered_wide$strain)
+
+# graph the hit score distribution of these strains against other SP and acr positive strains
+# for SP
+ggplot() +
+  geom_boxplot(data = subset(succinate_score_ngenes_filtered_wide, pathway == "SP" & !(strain %in% strains)), aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseAlpha`, color = "SP only")) +
+  geom_boxplot(data = subset(succinate_score_ngenes_filtered_wide, pathway == "SP" & (strain %in% strains)), aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseAlpha`, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(succinate_score_ngenes_filtered_wide, pathway == "SP" & !(strain %in% strains)), aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseBeta`, color = "SP only")) +
+  geom_boxplot(data = subset(succinate_score_ngenes_filtered_wide, pathway == "SP" & (strain %in% strains)), aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseBeta`, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(succinate_score_ngenes_filtered_wide, pathway == "SP" & !(strain %in% strains)), aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseGamma`, color = "SP only")) +
+  geom_boxplot(data = subset(succinate_score_ngenes_filtered_wide, pathway == "SP" & (strain %in% strains)), aes(y = `hit_score.methylmalonyl-CoA-decarboxylaseGamma`, color = "SP and acr strain"))
+
+# for acr
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.fucO, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.fucO, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.pduP, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.pduP, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.pduW, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.pduW, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.pduL, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.pduL, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.pduC, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.pduC, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.pduD, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.pduD, color = "SP and acr strain"))
+ggplot() +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, !(strain %in% strains)), aes(y = hit_score.pduE, color = "acr only")) +
+  geom_boxplot(data = subset(pro_score_ngenes_filtered_wide, (strain %in% strains)), aes(y = hit_score.pduE, color = "SP and acr strain"))
+
+# Results: Scores for the three strains were within the 1st quartile of the SP score distributions for all subunits of the decarboxylase, but ranges from below the 1st quartile to within the 2nd quartile for acr genes. Based off of the consistency of the hit scores being within range for the SP scores and the fact that these three strains are within the same genus as a model SP strain, Veillonella parvula, I am going to designate these strains as SP positive only and remove them from the acr positive df.
+pro_score_ngenes_filtered_wide <- subset(pro_score_ngenes_filtered_wide, !(strain %in% strains))
+
+# merge dfs
+# first, change non-SP genes for SP strains and non-WWC genes for WWC strains to NA in succinate_score_ngenes_filtered_wide
+succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase13S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase13S`)
+
+succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase12S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase12S`)
+
+succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase5S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-carboxyltransferase5S`)
+
+succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseAlpha` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseAlpha`)
+
+succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseBeta` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseBeta`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseGamma` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseGamma`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-carboxyltransferase13S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-carboxyltransferase13S`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-carboxyltransferase12S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-carboxyltransferase12S`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-carboxyltransferase5S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-carboxyltransferase5S`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseAlpha` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseAlpha`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseBeta` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseBeta`)
+
+succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseGamma` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_id.methylmalonyl-CoA-decarboxylaseGamma`)
+
+succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseGamma` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`hit_score.methylmalonyl-CoA-decarboxylaseGamma`)
+
+succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-carboxyltransferase13S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-carboxyltransferase13S`)
+
+succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-carboxyltransferase12S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-carboxyltransferase12S`)
+
+succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-carboxyltransferase5S` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "SP", NA, succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-carboxyltransferase5S`)
+
+succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-decarboxylaseAlpha` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-decarboxylaseAlpha`)
+
+succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-decarboxylaseBeta` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-decarboxylaseBeta`)
+
+succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-decarboxylaseGamma` <-
+  ifelse(succinate_score_ngenes_filtered_wide$pathway == "WWC", NA, succinate_score_ngenes_filtered_wide$`description.methylmalonyl-CoA-decarboxylaseGamma`)
+
+# merge dfs
+all_propionate_pathways_score_ngenes_filtered_wide <- bind_rows(succinate_score_ngenes_filtered_wide, acr_score_ngenes_filtered_wide)
+all_propionate_pathways_score_ngenes_filtered_wide <- bind_rows(all_propionate_pathways_score_ngenes_filtered_wide,acr_score_ngenes_filtered_wide)
+
+write.csv(all_propionate_pathways_score_ngenes_filtered_wide, "0.5scoreFilter_nGenes_propionate_HMMER_hits.csv")
+write_lines(all_propionate_pathways_score_ngenes_filtered_wide$strain, "propionate_HMMER_hits_strains.txt")
+```
+
+# BUTYRATE PATHWAY FILTER
+# Lys
+```{r}
+# manual check of strain list to see which strain names correspond to the model_lysine_species list
+model_lysine_strains <- c("Clostridium_sticklandii", "Fusobacterium_nucleatum", "Porphyromonas_gingivalis", "Eubacterium_ramulus")
+
+model_lysine_df <- (subset(maxHitScoreDF_butyrate, 
+                       grepl(model_lysine_strains[1], strain) | 
+                          grepl(model_lysine_strains[2], strain) |
+                         grepl(model_lysine_strains[3], strain) | 
+                         grepl(model_lysine_strains[4], strain)
+                       == TRUE))
+
+# lowest model score per gene
+slice(subset(model_lysine_df, model_lysine_df$gene == "kamA"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "kamD"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "kamE"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "kdd"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "kce"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "kal"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "bcd"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "atoA"), which.min(hit_score))
+slice(subset(model_lysine_df, model_lysine_df$gene == "atoD"), which.min(hit_score))
+
+# mininum model hit scores per gene
+kamA_min_score = 678.4
+kamD_min_score = 973.8
+kamE_min_score = 464.7
+kdd_min_score = 562.5
+kce_min_score = 452.6
+kal_min_score = 228.1
+bcd_min_score = 674.1
+atoA_min_score = 364
+atoD_min_score = 289.6
+
+# apply hmmer score filter to maxHitScoreDF
+
+filter_factor = 0.5
+
+lysine_score_filtered_df <- as.data.frame(maxHitScoreDF_butyrate) %>%
+  filter((gene == "kamA" & hit_score >= kamA_min_score * filter_factor) |
+         (gene == "kamD" & hit_score >= kamD_min_score * filter_factor) |
+         (gene == "kamE" & hit_score >= kamE_min_score * filter_factor) |
+         (gene == "kdd" & hit_score >= kdd_min_score * filter_factor) |
+         (gene == "kce" & hit_score >= kce_min_score * filter_factor) |
+           (gene == "kal" & hit_score >= kal_min_score * filter_factor) |
+           (gene == "bcd" & hit_score >= bcd_min_score * filter_factor) |
+           (gene == "atoA" & hit_score >= atoA_min_score * filter_factor) |
+           (gene == "atoD" & hit_score >= atoD_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+
+lysine_score_filtered_wide <- reshape(lysine_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# apply second filter for nGenes 
+
+lysine_score_ngenes_filtered_wide <- subset(lysine_score_filtered_wide, 
+                                            !is.na(`hit_score.kamA` &
+                                                     `hit_score.kamD` &
+                                                     `hit_score.kamE` & 
+                                                     `hit_score.kdd` &
+                                                     `hit_score.kce` &
+                                                     `hit_score.kal` &
+                                                     `hit_score.bcd` &
+                                                     `hit_score.atoA` &
+                                                     `hit_score.atoD`))
+
+# add column to distinguish which lysine pathway
+lysine_score_ngenes_filtered_wide$pathway <- "lysine"
+```
+
+# Glu
+```{r}
+model_glutarate_strains <- c("Acidaminococcus_fermentans",
+                             "Fusobacterium_nucleatum",
+                             "Clostridium_symbiosum",
+                             "Peptoniphilus_asaccharolyticus")
+
+model_glutarate_df <- (subset(maxHitScoreDF_butyrate, 
+                              grepl(model_glutarate_strains[1], strain) |
+                                grepl(model_glutarate_strains[2], strain) |
+                                grepl(model_glutarate_strains[3], strain) |
+                                grepl(model_glutarate_strains[4], strain)
+                              == TRUE))
+
+# lowest model score per gene
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "hgdA"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "hgdB"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "hgdC"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "bcd"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "gctA"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "gctB"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "gcdA"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "gcdB"), which.min(hit_score))
+slice(subset(model_glutarate_df, model_glutarate_df$gene == "but"), which.min(hit_score))
+
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "ptb"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "buk"), which.max(hit_score))
+
+# mininum model hit scores per gene
+hgdA_min_score = 818.1
+hgdB_min_score = 654.9
+hgdC_min_score = 470.5
+gctA_min_score = 564.5
+gctB_min_score = 512.9
+gcdA_min_score = 1082.8
+gcdB_min_score = 607.7
+bcd_min_score = 686
+but_min_score = 415.1
+
+ptb_min_score = 475.2
+buk_min_score = 616.7
+
+# apply hmmer score filter to maxHitScoreDF
+
+filter_factor = 0.5
+filter_factor_buk = 0.6
+
+glutarate_score_filtered_df <- as.data.frame(maxHitScoreDF_butyrate) %>%
+  filter((gene == "hgdA" & hit_score >= hgdA_min_score * filter_factor) |
+         (gene == "hgdB" & hit_score >= hgdB_min_score * filter_factor) |
+         (gene == "hgdC" & hit_score >= hgdC_min_score * filter_factor) |
+         (gene == "gctA" & hit_score >= gctA_min_score * filter_factor) |
+         (gene == "gctB" & hit_score >= gctB_min_score * filter_factor) |
+         (gene == "gcdA" & hit_score >= gcdA_min_score * filter_factor) |
+         (gene == "gcdB" & hit_score >= gcdB_min_score * filter_factor) |
+         (gene == "bcd" & hit_score >= bcd_min_score * filter_factor) |
+         (gene == "ptb" & hit_score >= ptb_min_score * filter_factor_buk) |
+           (gene == "buk" & hit_score >= buk_min_score * filter_factor_buk) |
+           (gene == "but" & hit_score >= but_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+glutarate_score_filtered_wide <- reshape(glutarate_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# apply second filter for nGenes 
+# this was when I thought buk route was being used
+glutarate_score_ngenes_filtered_wide <- subset(glutarate_score_filtered_wide,
+                                               (!is.na(`hit_score.hgdA` &
+                                                         `hit_score.hgdB` &
+                                                         `hit_score.hgdC` &
+                                                         `hit_score.bcd` &
+                                                         `hit_score.gctA` &
+                                                         `hit_score.gctB` &
+                                                         `hit_score.gcdA` &
+                                                         `hit_score.gcdB`)) &
+                                                 ((!is.na(`hit_score.ptb` &
+                                                            `hit_score.buk`)) |
+                                                    (!is.na(`hit_score.but`))
+                                                 )
+)
+
+# add column to distinguish which glutarate pathway
+glutarate_score_ngenes_filtered_wide$pathway <- ifelse(!is.na(glutarate_score_ngenes_filtered_wide$`hit_score.ptb` &
+                                                                glutarate_score_ngenes_filtered_wide$`hit_score.buk`),
+                                                       "glutarate_buk",
+                                                       ifelse(!is.na(glutarate_score_ngenes_filtered_wide$`hit_score.but`),
+                                                              "glutarate_but",
+                                                              NA))
+```
+
+# 4-Ami
+```{r}
+model_aminobutyrate_strains <- c("Anaerostipes_rhamnosivorans")
+
+model_aminobutyrate_df <- (subset(maxHitScoreDF_butyrate, 
+                       grepl(model_aminobutyrate_strains[1], strain) == TRUE))
+
+# lowest model score per gene
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "abfH"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "abfT"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "abfD"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "bcd"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "ptb"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "buk"), which.max(hit_score))
+slice(subset(maxHitScoreDF_butyrate, maxHitScoreDF_butyrate$gene == "but"), which.max(hit_score))
+
+# mininum model hit scores per gene
+abfH_min_score = 647
+abfT_min_score = 802.3
+abfD_min_score = 965.6
+bcd_min_score = 721.6
+ptb_min_score = 475.2
+buk_min_score = 616.7
+but_min_score = 806
+
+# apply hmmer score filter to maxHitScoreDF
+filter_factor = 0.5
+
+aminobutyrate_score_filtered_df <- as.data.frame(maxHitScoreDF_butyrate) %>%
+  filter((gene == "abfH" & hit_score >= abfH_min_score * filter_factor) |
+         (gene == "abfT" & hit_score >= abfT_min_score * filter_factor) |
+         (gene == "abfD" & hit_score >= abfD_min_score * filter_factor) |
+         (gene == "bcd" & hit_score >= bcd_min_score * filter_factor) |
+         (gene == "ptb" & hit_score >= ptb_min_score * filter_factor) |
+           (gene == "buk" & hit_score >= buk_min_score * filter_factor) |
+           (gene == "but" & hit_score >= but_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+aminobutyrate_score_filtered_wide <- reshape(aminobutyrate_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# apply second filter for nGenes 
+aminobutyrate_score_ngenes_filtered_wide <- subset(aminobutyrate_score_filtered_wide, 
+                                                   (!is.na(`hit_score.abfH` &
+                                                             `hit_score.abfD` &
+                                                             `hit_score.abfT` & 
+                                                             `hit_score.bcd`)) &
+                                                     (!is.na(`hit_score.ptb` &
+                                                               `hit_score.buk`) |
+                                                        (!is.na(`hit_score.but`)
+                                                        )
+                                                     )
+)
+
+
+# add column to distinguish which aminobutyrate pathway
+aminobutyrate_score_ngenes_filtered_wide$pathway <- ifelse(!is.na(aminobutyrate_score_ngenes_filtered_wide$`hit_score.ptb` &
+                                                                aminobutyrate_score_ngenes_filtered_wide$`hit_score.buk`), 
+                                                       "aminobutyrate_buk", 
+                                                       ifelse(!is.na(aminobutyrate_score_ngenes_filtered_wide$`hit_score.but`), 
+                                                              "aminobutyrate_but",
+                                                              NA))
+
+aminobutyrate_score_ngenes_filtered_wide_buk <- subset(aminobutyrate_score_ngenes_filtered_wide, pathway == "aminobutyrate_buk")
+aminobutyrate_score_ngenes_filtered_wide_but <- subset(aminobutyrate_score_ngenes_filtered_wide, pathway == "aminobutyrate_but")
+```
+
+# Ace
+```{r}
+model_acetylCoA_strains <- c("Anaerostipes-caccae-DSM-14662-MAF-2", 
+                             "Butyricicoccus_pullicaecorum", 
+                             "Clostridium_butyricum", 
+                             "Coprococcus_catus", 
+                             "Eubacterium_limosum", 
+                             "Eubacterium_rectale", 
+                             "Megasphaera-elsdenii-14-14-MAF-2", 
+                             "Roseburia_hominis", 
+                             "Faecalibacterium_prausnitzii", 
+                             "Anaerostipes_hadrus", 
+                             "Anaerotruncus-colihominis-DSM-17241-MAF-2", 
+                             "Clostridium_acetobutylicum",
+                             "Coprococcus-comes-ATCC-27758-MAF-2",
+                             "Eubacterium_ruminantium",
+                             "Roseburia-inulinivorans-strain-AF28-15",
+                             "Roseburia_inulinivorans",
+                             "Anaerostipes-caccae-DSM-14662-MAF-2",
+                             "Butyricicoccus_pullicaecorum",
+                             "Butyrivibrio_fibrisolvens",
+                             "Eubacterium_ramulus",
+                             "Roseburia_faecis")
+
+model_acetylCoA_df <- (subset(maxHitScoreDF_butyrate, 
+                       grepl(model_acetylCoA_strains[1], strain) | 
+                          grepl(model_acetylCoA_strains[2], strain) |
+                         grepl(model_acetylCoA_strains[3], strain) | 
+                         grepl(model_acetylCoA_strains[4], strain) |
+                         grepl(model_acetylCoA_strains[5], strain) | 
+                          grepl(model_acetylCoA_strains[6], strain) |
+                         grepl(model_acetylCoA_strains[7], strain) | 
+                         grepl(model_acetylCoA_strains[8], strain) | 
+                          grepl(model_acetylCoA_strains[9], strain) |
+                         grepl(model_acetylCoA_strains[11], strain) | 
+                         grepl(model_acetylCoA_strains[12], strain) |
+                         grepl(model_acetylCoA_strains[13], strain) | 
+                          grepl(model_acetylCoA_strains[14], strain) |
+                         grepl(model_acetylCoA_strains[15], strain) | 
+                         grepl(model_acetylCoA_strains[16], strain) | 
+                         grepl(model_acetylCoA_strains[17], strain) | 
+                          grepl(model_acetylCoA_strains[18], strain) |
+                         grepl(model_acetylCoA_strains[19], strain) | 
+                         grepl(model_acetylCoA_strains[20], strain) |
+                         grepl(model_acetylCoA_strains[21], strain) | 
+                          grepl(model_acetylCoA_strains[22], strain)
+                       == TRUE))
+
+model_acetylCoA_df_but <- (subset(maxHitScoreDF_butyrate, 
+                       grepl(model_acetylCoA_strains[1], strain) | 
+                          grepl(model_acetylCoA_strains[2], strain) |
+                         grepl(model_acetylCoA_strains[3], strain) | 
+                         grepl(model_acetylCoA_strains[4], strain) |
+                         grepl(model_acetylCoA_strains[5], strain) | 
+                          grepl(model_acetylCoA_strains[6], strain) |
+                         grepl(model_acetylCoA_strains[7], strain) | 
+                         grepl(model_acetylCoA_strains[8], strain) | 
+                          grepl(model_acetylCoA_strains[9], strain) |
+                         grepl(model_acetylCoA_strains[11], strain) | 
+                         grepl(model_acetylCoA_strains[13], strain) | 
+                          grepl(model_acetylCoA_strains[14], strain) |
+                         grepl(model_acetylCoA_strains[15], strain) | 
+                         grepl(model_acetylCoA_strains[16], strain) | 
+                         grepl(model_acetylCoA_strains[17], strain) | 
+                          grepl(model_acetylCoA_strains[18], strain) |
+                         grepl(model_acetylCoA_strains[19], strain) | 
+                         grepl(model_acetylCoA_strains[21], strain) 
+                       == TRUE))
+
+model_acetylCoA_df_buk <- (subset(maxHitScoreDF_butyrate, 
+                         grepl(model_acetylCoA_strains[12], strain) | 
+                         grepl(model_acetylCoA_strains[20], strain) 
+                       == TRUE))
+
+# lowest model score per gene
+slice(subset(model_acetylCoA_df, model_acetylCoA_df$gene == "thl"), which.min(hit_score))
+slice(subset(model_acetylCoA_df, model_acetylCoA_df$gene == "hbd"), which.min(hit_score))
+slice(subset(model_acetylCoA_df, model_acetylCoA_df$gene == "cro"), which.min(hit_score))
+slice(subset(model_acetylCoA_df, model_acetylCoA_df$gene == "bcd"), which.min(hit_score))
+
+slice(subset(model_acetylCoA_df_buk, model_acetylCoA_df_buk$gene == "ptb"), which.min(hit_score))
+slice(subset(model_acetylCoA_df_buk, model_acetylCoA_df_buk$gene == "buk"), which.min(hit_score))
+
+slice(subset(model_acetylCoA_df_but, model_acetylCoA_df_but$gene == "but"), which.min(hit_score))
+
+# mininum model hit scores per gene
+thl_min_score = 586.9
+hbd_min_score = 413.3
+cro_min_score = 357.5
+bcd_min_score = 631.9
+ # manually check for a dropoff in scores since these are branching pathways!
+ptb_min_score = 415.6
+buk_min_score = 508.8
+but_min_score = 689.2
+
+# apply hmmer score filter to maxHitScoreDF
+
+filter_factor = 0.5
+
+acetylCoA_score_filtered_df <- as.data.frame(maxHitScoreDF_butyrate) %>%
+  filter((gene == "thl" & hit_score >= thl_min_score * filter_factor) |
+         (gene == "hbd" & hit_score >= hbd_min_score * filter_factor) |
+         (gene == "cro" & hit_score >= cro_min_score * filter_factor) |
+         (gene == "bcd" & hit_score >= bcd_min_score * filter_factor) |
+         (gene == "ptb" & hit_score >= ptb_min_score * filter_factor) |
+           (gene == "buk" & hit_score >= buk_min_score * filter_factor) |
+           (gene == "but" & hit_score >= but_min_score * filter_factor))
+
+# reshape filtered_df from long to wide by gene (gene)
+acetylCoA_score_filtered_wide <- reshape(acetylCoA_score_filtered_df, timevar = "gene", direction = "wide", idvar = "strain")
+
+# apply second filter for nGenes 
+acetylCoA_score_ngenes_filtered_wide <- subset(acetylCoA_score_filtered_wide, 
+                                               (!is.na(`hit_score.thl` &
+                                                         `hit_score.hbd` &
+                                                         `hit_score.cro` & 
+                                                         `hit_score.bcd`)) &
+                                                 (!is.na(`hit_score.ptb` &
+                                                           `hit_score.buk`) |
+                                                    (!is.na(`hit_score.but`)
+                                                    )
+                                                 )
+)
+
+
+# add column to distinguish which acetylCoA pathway
+acetylCoA_score_ngenes_filtered_wide$pathway <- ifelse(!is.na(acetylCoA_score_ngenes_filtered_wide$`hit_score.ptb` &
+                                                                acetylCoA_score_ngenes_filtered_wide$`hit_score.buk`), 
+                                                       "acetylCoA_buk", 
+                                                       ifelse(!is.na(acetylCoA_score_ngenes_filtered_wide$`hit_score.but`), 
+                                                              "acetylCoA_but",
+                                                              NA))
+
+acetylCoA_score_ngenes_filtered_wide_buk <- subset(acetylCoA_score_ngenes_filtered_wide, pathway == "acetylCoA_buk")
+acetylCoA_score_ngenes_filtered_wide_but <- subset(acetylCoA_score_ngenes_filtered_wide, pathway == "acetylCoA_but")
+```
+
+# analyze genomes that report positive for multiple butyrate pathways
+```{r}
+
+all_butyrate_pathways_score_ngenes_filtered_wide <- bind_rows(lysine_score_ngenes_filtered_wide, acetylCoA_score_ngenes_filtered_wide, glutarate_score_ngenes_filtered_wide, aminobutyrate_score_ngenes_filtered_wide
+
+lysine_genomes_hmmer <- unique(lysine_score_ngenes_filtered_wide$strain)
+glutarate_genomes_hmmer <- unique(glutarate_score_ngenes_filtered_wide$strain)
+aminobutyrate_genomes_hmmer <- unique(c(aminobutyrate_score_ngenes_filtered_wide_buk$strain, aminobutyrate_score_ngenes_filtered_wide_but$strain))
+acetylCoA_genomes_hmmer <- unique(c(acetylCoA_score_ngenes_filtered_wide_buk$strain, acetylCoA_score_ngenes_filtered_wide_but$strain))
+
+# genomes that are in multiple pathways
+paste("Ace + 4-Ami:", length(intersect(acetylCoA_genomes_hmmer, aminobutyrate_genomes_hmmer)))
+paste("Ace + Lys:", length(intersect(acetylCoA_genomes_hmmer, lysine_genomes_hmmer)))
+paste("Ace + Glu:", length(intersect(acetylCoA_genomes_hmmer, glutarate_genomes_hmmer)))
+paste("Lys + 4-Ami:", length(intersect(lysine_genomes_hmmer, aminobutyrate_genomes_hmmer)))
+paste("Lys + Glu:", length(intersect(lysine_genomes_hmmer, glutarate_genomes_hmmer)))
+paste("4-Ami + Glu:", length(intersect(glutarate_genomes_hmmer, aminobutyrate_genomes_hmmer)))
+
+df <- all_butyrate_pathways_score_ngenes_filtered_wide
+score_columns <- subset(colnames(df), grepl("score", colnames(df)))
+df <- all_butyrate_pathways_score_ngenes_filtered_wide
+df <- df %>%
+  mutate(pathway_score_mean = rowMeans(df[,score_columns], na.rm = TRUE))
+
+# VIZ
+df_exclude_strains <- subset(df, (pathway %in% c("lysine", "acetylCoA_buk", "acetylCoA_but")) & !(strain %in% intersect(acetylCoA_genomes_hmmer, lysine_genomes_hmmer)))
+df_strains_of_interest <- subset(df, (pathway %in% c("lysine", "acetylCoA_buk", "acetylCoA_but")) & (strain %in% intersect(acetylCoA_genomes_hmmer, lysine_genomes_hmmer)))
+
+ggplot() +
+  geom_boxplot(aes(x = df_exclude_strains$pathway_score_mean, y = df_exclude_strains$pathway)) +
+  geom_point(aes(x = df_strains_of_interest$pathway_score_mean, color = df_strains_of_interest$strain, y = df_strains_of_interest$pathway))
+# Lys + Ace --> undetermined
+
+df_exclude_strains <- subset(df, (pathway %in% c("glutarate_buk", "glutarate_but", "acetylCoA_buk", "acetylCoA_but")) & !(strain %in% intersect(acetylCoA_genomes_hmmer, glutarate_genomes_hmmer)))
+df_strains_of_interest <- subset(df, (pathway %in% c("glutarate_buk", "glutarate_but", "acetylCoA_buk", "acetylCoA_but")) & (strain %in% intersect(acetylCoA_genomes_hmmer, glutarate_genomes_hmmer)))
+
+ggplot() +
+  geom_boxplot(aes(x = df_exclude_strains$pathway_score_mean, y = df_exclude_strains$pathway)) +
+  geom_point(aes(x = df_strains_of_interest$pathway_score_mean, color = df_strains_of_interest$strain, y = df_strains_of_interest$pathway))
+# Ace + Glu --> Glu
+
+df_exclude_strains <- subset(df, (pathway %in% c("aminobutyrate_buk", "aminobutyrate_but", "acetylCoA_buk", "acetylCoA_but")) & !(strain %in% intersect(acetylCoA_genomes_hmmer, aminobutyrate_genomes_hmmer)))
+df_strains_of_interest <- subset(df, (pathway %in% c("aminobutyrate_buk", "aminobutyrate_but", "acetylCoA_buk", "acetylCoA_but")) & (strain %in% intersect(acetylCoA_genomes_hmmer, aminobutyrate_genomes_hmmer)))
+
+ggplot() +
+  geom_boxplot(aes(x = df_exclude_strains$pathway_score_mean, y = df_exclude_strains$pathway)) +
+  geom_point(aes(x = df_strains_of_interest$pathway_score_mean, color = df_strains_of_interest$strain, y = df_strains_of_interest$pathway))
+# Ace + Ami -- > Ami
+
+df_exclude_strains <- subset(df, (pathway %in% c("glutarate_buk", "glutarate_but", "lysine")) & !(strain %in% intersect(lysine_genomes_hmmer, glutarate_genomes_hmmer)))
+df_strains_of_interest <- subset(df, (pathway %in% c("glutarate_buk", "glutarate_but", "lysine")) & (strain %in% intersect(lysine_genomes_hmmer, glutarate_genomes_hmmer)))
+
+ggplot() +
+  geom_boxplot(aes(x = df_exclude_strains$pathway_score_mean, y = df_exclude_strains$pathway)) +
+  geom_point(aes(x = df_strains_of_interest$pathway_score_mean, color = df_strains_of_interest$strain, y = df_strains_of_interest$pathway))
+# Lys + Glu --> Lys
+
+df_exclude_strains <- subset(df, (pathway %in% c("glutarate_buk", "glutarate_but", "aminobutyrate_buk", "aminobutyrate_but")) & !(strain %in% intersect(aminobutyrate_genomes_hmmer, glutarate_genomes_hmmer)))
+df_strains_of_interest <- subset(df, (pathway %in% c("glutarate_buk", "glutarate_but", "aminobutyrate_buk", "aminobutyrate_but")) & (strain %in% intersect(aminobutyrate_genomes_hmmer, glutarate_genomes_hmmer)))
+
+ggplot() +
+  geom_boxplot(aes(x = df_exclude_strains$pathway_score_mean, y = df_exclude_strains$pathway)) +
+  geom_point(aes(x = df_strains_of_interest$pathway_score_mean, color = df_strains_of_interest$strain, y = df_strains_of_interest$pathway))
+# Glu + Ami --> Ami
+
+df_exclude_strains <- subset(df, (pathway %in% c("lysine", "aminobutyrate_buk", "aminobutyrate_but")) & !(strain %in% intersect(aminobutyrate_genomes_hmmer, lysine_genomes_hmmer)))
+df_strains_of_interest <- subset(df, (pathway %in% c("lysine", "aminobutyrate_buk", "aminobutyrate_but")) & (strain %in% intersect(aminobutyrate_genomes_hmmer, lysine_genomes_hmmer)))
+
+ggplot() +
+  geom_boxplot(aes(x = df_exclude_strains$pathway_score_mean, y = df_exclude_strains$pathway)) +
+  geom_point(aes(x = df_strains_of_interest$pathway_score_mean, color = df_strains_of_interest$strain, y = df_strains_of_interest$pathway))
+# Ami + Lys --> Lys
+
+# CONCLUSIONS
+# Lys + Ace --> undetermined
+# Ace + Glu --> Glu
+# Ace + Ami -- > Ami
+# Lys + Glu --> Lys
+# Glu + Ami --> Ami
+# Ami + Lys --> Lys
+
+not_ace_strains <- intersect(acetylCoA_genomes_hmmer, aminobutyrate_genomes_hmmer)
+not_ace_strains <- unique(append(not_ace_strains, intersect(acetylCoA_genomes_hmmer, glutarate_genomes_hmmer)))
+not_glu_strains <- intersect(lysine_genomes_hmmer, glutarate_genomes_hmmer)
+not_glu_strains <- unique(append(not_glu_strains, intersect(aminobutyrate_genomes_hmmer, glutarate_genomes_hmmer)))
+not_ami_strains <- intersect(lysine_genomes_hmmer, aminobutyrate_genomes_hmmer)
+
+glutarate_genomes_hmmer_updated <- setdiff(glutarate_genomes_hmmer, not_glu_strains)
+aminobutyrate_genomes_hmmer_updated <- setdiff(aminobutyrate_genomes_hmmer, not_ami_strains)
+acetylCoA_genomes_hmmer_updated <- setdiff(acetylCoA_genomes_hmmer, not_ace_strains)
+
+# specify strains present in multiple pathways -- remove from dfs
+acetylCoA_score_ngenes_filtered_wide_updated <- subset(acetylCoA_score_ngenes_filtered_wide, !(strain %in% not_ace_strains))
+aminobutyrate_score_ngenes_filtered_wide_updated <- subset(aminobutyrate_score_ngenes_filtered_wide, !(strain %in% not_ami_strains))
+glutarate_score_ngenes_filtered_wide_updated <- subset(glutarate_score_ngenes_filtered_wide, !(strain %in% not_glu_strains))
+
+all_butyrate_pathways_score_ngenes_filtered_wide <- bind_rows(lysine_score_ngenes_filtered_wide, acetylCoA_score_ngenes_filtered_wide_updated, glutarate_score_ngenes_filtered_wide_updated, aminobutyrate_score_ngenes_filtered_wide_updated)
+
+write.csv(all_butyrate_pathways_score_ngenes_filtered_wide, "0.5scoreFilter_nGenes_butyrate_HMMER_hits.csv")
+write_lines(all_butyrate_pathways_score_ngenes_filtered_wide$strain, "butyrate_HMMER_hits_strains.txt")
+```
+
+# HOUSEKEEPING
+```{r}
+ggplot(data = subset(maxHitScoreDF_housekeeping), aes(x = hit_score)) +
+  geom_boxplot()
+
+# 99% of genomes are covered with a score cutoff of 400 and follow an obvious score dropoff in HMMER results
+score_cutoff <- 400
+
+# make CSV file that of strains that passed filtering requirements to be included in gene catalog. This CSV file contains strain name, hit_score, and fasta header information.
+housekeeping_score_filtered_df <- subset(maxHitScoreDF_housekeeping, hit_score >= score_cutoff )
+housekeeping_score_filtered_df <- housekeeping_score_filtered_df[-2]
+housekeeping_score_filtered_df <- housekeeping_score_filtered_df %>%
+  rename("hit_score.rplB" = "hit_score",
+         "hit_id.rplB" = "hit_id",
+         "description.rplB" = "description")
+
+write.csv(housekeeping_score_filtered_df, "0.5scoreFilter_nGenes_housekeeping_HMMER_hits.csv")
+write_lines(unique(housekeeping_score_filtered_df$strain), file = "housekeeping_hit_strains.txt", sep = "\n")
+```
+

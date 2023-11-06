@@ -1,0 +1,43 @@
+from os.path import join
+import os
+
+configfile: "config/config.yml"
+
+with open(config["strainFile"], 'r') as f:
+    strains = f.read()
+    STRAINS = strains.split()
+
+# Put pathway you would like to run a HMMER search for here. Options: propionate, butyrate, housekeeping.
+PATHWAYS = [""]
+
+file_name = str(PATHWAYS[0]) + "_gene_list.txt"
+gene_file = join(config["geneFile"], file_name)
+
+with open(gene_file, 'r') as f:
+    genes = f.read()
+    GENES = genes.split()
+
+
+rule all:
+    input:
+        expand("config/referenceGeneFiles/{pathway}/{gene}.faa", gene=GENES, pathway=PATHWAYS),
+        expand("config/referenceGeneFiles/{pathway}/{gene}_withCarrot.faa", gene=GENES, pathway=PATHWAYS),
+        expand("config/referenceGeneMSA/{pathway}/{gene}_msa.faa", gene=GENES, pathway=PATHWAYS),
+	expand("config/profileHMMs/{pathway}/{gene}.HMM", gene=GENES, pathway=PATHWAYS),
+        expand(join(config["strainGenomeDir"], "{strain}.fa"),strain=STRAINS),
+        expand(join(config["proteinSeqDir"],"{strain}_prodigal.faa"), strain=STRAINS),
+        expand(join(config["hmmOutDir"],"{pathway}/{gene}/hmmer_output/{strain}_{gene}.hmm.out"),strain=STRAINS,gene=GENES, pathway=PATHWAYS),
+        expand(join(config["hmmOutDir"],"{pathway}/{gene}/hmmer_output/{strain}_{gene}.domtblout"),strain=STRAINS,gene=GENES, pathway=PATHWAYS),
+        expand(join(config["hmmOutDir"],"{pathway}/{gene}/hmmer_output/{strain}_{gene}.sto"),strain=STRAINS,gene=GENES, pathway=PATHWAYS),
+        expand(join(config["hmmOutDir"],"{pathway}/{gene}/csv_summary/{strain}_{gene}_hits.csv"),strain=STRAINS,gene=GENES, pathway=PATHWAYS),
+        expand(join(config["hmmOutDir"],"{pathway}/{gene}/faa_summary/{strain}_{gene}_hits.faa"),strain=STRAINS,gene=GENES, pathway=PATHWAYS),
+        expand("workflow/out/summary/{pathway}/csv_summary/compiled_{gene}_hits.csv", gene=GENES, pathway=PATHWAYS),
+        expand("workflow/out/summary/{pathway}/faa_summary/compiled_{gene}_hits.faa", gene=GENES, pathway=PATHWAYS),
+        expand("workflow/out/summary/{pathway}/compiled_hits_{pathway}.csv", pathway=PATHWAYS),
+        expand("workflow/out/summary/{pathway}/maxHitScoreDF_{pathway}.csv", pathway=PATHWAYS)
+        # join("workflow/out/summary_all/", config["compiledHits"]),
+        # join("workflow/out/summary_all/", config["maxHitScoreDF"])
+
+
+include:
+    "workflow/rules/HMMER_search.smk"
